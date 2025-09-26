@@ -41,10 +41,12 @@ INSTALLED_APPS = [
 
     # 第三方
     'rest_framework',
+    "corsheaders",
 
     # 我们的应用
     'schedules',
-    "corsheaders",
+    'city',
+    
 ]
 
 MIDDLEWARE = [

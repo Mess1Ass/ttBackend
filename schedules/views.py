@@ -1,18 +1,53 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import ScheduleSerializer
+from django.http import HttpResponse, Http404
+import threading
+from .models import Schedule, ScheduleImage
+from .serializers import ScheduleSerializer, ScheduleImageSerializer
 from .services import ScheduleService
+from city.services import CityService   # 引用 city 的服务
 
 
 @api_view(["POST"])
 def create_schedule(request):
-    print(request.data)
     """新建演出时间表"""
     serializer = ScheduleSerializer(data=request.data)
     if serializer.is_valid():
-        schedule = ScheduleService.create_schedule(serializer.validated_data)
-        return Response(ScheduleSerializer(schedule).data, status=status.HTTP_201_CREATED)
+        data = serializer.validated_data
+
+        # ✅ 处理上传的多文件
+        imgs = []
+        for f in request.FILES.getlist("imgs"):
+            img = ScheduleImage(
+                filename=f.name,
+                content_type=f.content_type,
+                data=f.read()  # 存二进制
+            )
+            imgs.append(img)
+
+        # ✅ 存到 Schedule
+        schedule = Schedule(
+            city=data.get("city"),
+            date=data.get("date"),
+            title=data.get("title"),
+            location=data.get("location"),
+            groups=data.get("groups", []),
+            imgs=imgs
+        )
+        schedule.save()
+
+        # 🚀 异步触发 city 检查
+        city_name = data.get("city")
+        if city_name:
+            threading.Thread(target=CityService.get_or_create_city, args=(city_name,)).start()
+
+        # ✅ 返回时序列化 imgs → url
+        resp_data = ScheduleSerializer(schedule).data
+        resp_data["imgs"] = ScheduleImageSerializer(schedule.imgs, many=True, context={"schedule": schedule}).data
+
+        return Response(resp_data, status=status.HTTP_201_CREATED)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -22,6 +57,44 @@ def list_schedules(request):
     schedules = ScheduleService.list_schedules()
     serializer = ScheduleSerializer(schedules, many=True)
     return Response(serializer.data)
+
+@api_view(["GET"])
+def get_schedules_by_month(request):
+    """按月份查询演出时间表"""
+    year_month = request.query_params.get("month")  # 前端传 ?month=2025-09
+    if not year_month:
+        return Response({"error": "缺少参数 month，例如 2025-09"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        schedules = ScheduleService.get_schedules_by_month(year_month)
+
+        resp_data = []
+        for schedule in schedules:
+            s_data = ScheduleSerializer(schedule).data
+            s_data["imgs"] = ScheduleImageSerializer(
+                schedule.imgs,
+                many=True,
+                context={"schedule": schedule}
+            ).data
+            resp_data.append(s_data)
+
+        return Response(resp_data, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(["GET"])
+def get_schedule_image(request, scheId, filename):
+    """获取某个 schedule 的指定图片"""
+    schedule = ScheduleService.get_schedule(scheId)
+    if not schedule:
+        raise Http404("Schedule not found")
+
+    img = next((i for i in schedule.imgs if i.filename == filename), None)
+    if not img:
+        raise Http404("Image not found")
+
+    return HttpResponse(img.data, content_type=img.content_type)
 
 
 @api_view(["GET"])
@@ -33,17 +106,27 @@ def get_schedule(request, scheId):
     return Response(ScheduleSerializer(schedule).data)
 
 
-@api_view(["PUT", "PATCH"])
+@api_view(["PUT"])
 def update_schedule(request, scheId):
     """更新时间表"""
     schedule = ScheduleService.get_schedule(scheId)
     if not schedule:
         return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
 
-    serializer = ScheduleSerializer(data=request.data, partial=True)
+    serializer = ScheduleSerializer(schedule, data=request.data, partial=True)
     if serializer.is_valid():
-        updated = ScheduleService.update_schedule(scheId, serializer.validated_data)
-        return Response(ScheduleSerializer(updated).data)
+        # 处理图片（可选，前端如果没传，就不更新）
+        images = request.FILES.getlist("imgs")
+        print("imgs:", images)
+
+        updated = ScheduleService.update_schedule(schedule, serializer.validated_data, images)
+
+        # 🚀 异步触发 city 检查
+        city_name = serializer.validated_data.get("city")
+        if city_name:
+            threading.Thread(target=CityService.get_or_create_city, args=(city_name,)).start()
+
+        return Response(ScheduleSerializer(updated).data, status=status.HTTP_200_OK)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
