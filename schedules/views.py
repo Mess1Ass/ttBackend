@@ -16,26 +16,10 @@ def create_schedule(request):
     if serializer.is_valid():
         data = serializer.validated_data
 
-        # ✅ 处理上传的多文件
-        imgs = []
-        for f in request.FILES.getlist("imgs"):
-            img = ScheduleImage(
-                filename=f.name,
-                content_type=f.content_type,
-                data=f.read()  # 存二进制
-            )
-            imgs.append(img)
+        imgs = request.FILES.getlist("imgs")
 
-        # ✅ 存到 Schedule
-        schedule = Schedule(
-            city=data.get("city"),
-            date=data.get("date"),
-            title=data.get("title"),
-            location=data.get("location"),
-            groups=data.get("groups", []),
-            imgs=imgs
-        )
-        schedule.save()
+        # ✅ 调用 service 层
+        schedule = ScheduleService.create_schedule(data, imgs)
 
         # 🚀 异步触发 city 检查
         city_name = data.get("city")
@@ -137,3 +121,15 @@ def delete_schedule(request, scheId):
     if not deleted:
         return Response({"error": "Not found"}, status=status.HTTP_404_NOT_FOUND)
     return Response(status=status.HTTP_204_NO_CONTENT)
+
+@api_view(["DELETE"])
+def delete_schedule_image(request, schedule_id: str, img_name: str):
+    """
+    删除指定演出时间表的图片
+    URL 示例: DELETE /schedule/<schedule_id>/image/<img_name>/
+    """
+    success = ScheduleService.delete_imgs(schedule_id, img_name)
+    if success:
+        return Response({"message": "图片删除成功"}, status=status.HTTP_200_OK)
+    else:
+        return Response({"error": "图片不存在或演出时间表未找到"}, status=status.HTTP_404_NOT_FOUND)

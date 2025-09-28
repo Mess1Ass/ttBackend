@@ -70,15 +70,15 @@ class ScheduleService:
         schedule.title = validated_data.get("title", schedule.title)
         schedule.groups = validated_data.get("groups", schedule.groups)
         schedule.location = validated_data.get("location", schedule.location)
+        schedule.imgs = validated_data.get("imgs", schedule.imgs)
 
-        if images:  # 如果传了新图，替换掉旧的
-            schedule.imgs = [
-                ScheduleImage(
+        if images:
+            for img in images:
+                schedule.imgs.append(ScheduleImage(
                     filename=img.name,
                     content_type=img.content_type,
                     data=img.read()
-                ) for img in images
-            ]
+                ))
         schedule.save()
         return schedule
 
@@ -88,4 +88,21 @@ class ScheduleService:
         if not schedule:
             return False
         schedule.delete()
+        return True
+    
+    @staticmethod
+    def delete_imgs(schedule_id: str, img_name: str) -> bool:
+        schedule = ScheduleService.get_schedule(schedule_id)
+        if not schedule:
+            return False
+
+        # 过滤掉要删除的图片
+        new_imgs = [img for img in schedule.imgs if img.filename != img_name]
+
+        # 如果没有变化，说明图片不存在
+        if len(new_imgs) == len(schedule.imgs):
+            return False
+
+        schedule.imgs = new_imgs
+        schedule.save()
         return True

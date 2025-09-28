@@ -5,14 +5,17 @@ from datetime import datetime
 # Create your models here.
 class Group(me.Document):
     name = me.StringField(required=True, unique=True)  # 组合名唯一
-    created_at = me.IntField(default=lambda: int(datetime.utcnow().timestamp() * 1000))
+    mates = me.ListField(me.StringField())
+    location = me.StringField()
+
+    
 
     meta = {
         'collection': 'Groups'  # MongoDB 里的集合名
     }
 
 
-class Showlogs(me.Document):
+class Showlog(me.Document):
     group_id = me.StringField(required=True)  # 外键组合id
     schedule_id = me.StringField(required=True)  # 外键日程表id
     title = me.StringField(required=True)
