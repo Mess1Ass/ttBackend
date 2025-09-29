@@ -8,7 +8,7 @@ class Group(me.Document):
     mates = me.ListField(me.StringField())
     location = me.StringField()
 
-    
+    created_at = me.IntField(default=lambda: int(datetime.utcnow().timestamp() * 1000))
 
     meta = {
         'collection': 'Groups'  # MongoDB 里的集合名

@@ -2,11 +2,13 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from django.http import HttpResponse, Http404
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 from .models import Schedule, ScheduleImage
 from .serializers import ScheduleSerializer, ScheduleImageSerializer
 from .services import ScheduleService
 from city.services import CityService   # 引用 city 的服务
+from group.services import GroupService, ShowlogService
 
 
 @api_view(["POST"])
@@ -15,20 +17,55 @@ def create_schedule(request):
     serializer = ScheduleSerializer(data=request.data)
     if serializer.is_valid():
         data = serializer.validated_data
-
         imgs = request.FILES.getlist("imgs")
 
-        # ✅ 调用 service 层
+        # ✅ 创建 schedule（必须同步）
         schedule = ScheduleService.create_schedule(data, imgs)
 
-        # 🚀 异步触发 city 检查
+        # 🚀 city 异步，不依赖返回值
         city_name = data.get("city")
         if city_name:
-            threading.Thread(target=CityService.get_or_create_city, args=(city_name,)).start()
+            threading.Thread(
+                target=CityService.get_or_create_city,
+                args=(city_name,)
+            ).start()
+
+        # 🚀 group 异步，并发获取 group_id
+        group_list = data.get("groups", [])
+        group_ids = []
+        if group_list and isinstance(group_list, list):
+            with ThreadPoolExecutor(max_workers=8) as executor:  # 可以设置并发数，比如 8
+                # 提交任务
+                future_to_group = {
+                    executor.submit(GroupService.get_or_create_group, g): g
+                    for g in group_list if g
+                }
+
+                # 收集结果
+                for future in as_completed(future_to_group):
+                    try:
+                        group = future.result()
+                        if group:
+                            group_ids.append(str(group.id))
+                    except Exception as e:
+                        print(f"⚠️ 处理 group {future_to_group[future]} 出错: {e}")
+
+        # ✅ 等到 group 和 schedule 都准备好，再创建 showlog
+        for gid in group_ids:
+            showlog_data = {
+                "group_id": gid,
+                "schedule_id": str(schedule.id),
+                "date": data.get("date"),
+                "location": data.get("city", ""),
+                "title": data.get("title", "")
+            }
+            ShowlogService.create_showlog(showlog_data)
 
         # ✅ 返回时序列化 imgs → url
         resp_data = ScheduleSerializer(schedule).data
-        resp_data["imgs"] = ScheduleImageSerializer(schedule.imgs, many=True, context={"schedule": schedule}).data
+        resp_data["imgs"] = ScheduleImageSerializer(
+            schedule.imgs, many=True, context={"schedule": schedule}
+        ).data
 
         return Response(resp_data, status=status.HTTP_201_CREATED)
 
@@ -99,19 +136,54 @@ def update_schedule(request, scheId):
 
     serializer = ScheduleSerializer(schedule, data=request.data, partial=True)
     if serializer.is_valid():
+        data = serializer.validated_data
+
         # 处理图片（可选，前端如果没传，就不更新）
         images = request.FILES.getlist("imgs")
-        print("imgs:", images)
+        updated = ScheduleService.update_schedule(schedule, data, images)
 
-        updated = ScheduleService.update_schedule(schedule, serializer.validated_data, images)
-
-        # 🚀 异步触发 city 检查
-        city_name = serializer.validated_data.get("city")
+        # 🚀 city 异步，不依赖返回值
+        city_name = data.get("city")
         if city_name:
-            threading.Thread(target=CityService.get_or_create_city, args=(city_name,)).start()
+            threading.Thread(
+                target=CityService.get_or_create_city,
+                args=(city_name,)
+            ).start()
+
+        # 🚀 group 异步，并发获取 group_id
+        group_list = data.get("groups", [])
+        group_ids = []
+        if group_list and isinstance(group_list, list):
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                future_to_group = {
+                    executor.submit(GroupService.get_or_create_group, g): g
+                    for g in group_list if g
+                }
+                for future in as_completed(future_to_group):
+                    try:
+                        group = future.result()
+                        if group:
+                            group_ids.append(str(group.id))
+                    except Exception as e:
+                        print(f"⚠️ 处理 group {future_to_group[future]} 出错: {e}")
+
+        
+
+        # ✅ 等到 group 和 schedule 都准备好，再创建 showlog
+        for gid in group_ids:
+            showlog_data = {
+                "group_id": gid,
+                "schedule_id": str(updated.id),
+                "date": data.get("date"),
+                "location": data.get("city", ""),
+                "title": data.get("title", "")
+            }
+            ShowlogService.create_showlog(showlog_data)
 
         return Response(ScheduleSerializer(updated).data, status=status.HTTP_200_OK)
+
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 
 @api_view(["DELETE"])
