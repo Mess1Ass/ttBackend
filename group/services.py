@@ -70,6 +70,18 @@ class GroupService:
         except Exception as e:
             print(f"[get_group_and_showlog_byname] Error: {e}")
             return None
+        
+    @staticmethod
+    def update_group(group_id: str, data) -> bool:
+        """更新团体信息"""
+        group = Group.objects(id=group_id).first()
+        if group:
+            group.name = data.get("name", group.name)
+            group.location = data.get("location", group.location)
+            group.mates = data.get("mates", group.mates)
+            group.save()
+        return group
+
     
     @staticmethod
     def delete_group(group_id: str, schedule_id: str) -> bool:

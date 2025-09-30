@@ -37,7 +37,7 @@ class ScheduleService:
         return schedule
 
     @staticmethod
-    def get_schedule(schedule_id: str):
+    def get_schedule_byid(schedule_id: str):
         try:
             return Schedule.objects.get(id=schedule_id)
         except Schedule.DoesNotExist:
@@ -62,6 +62,9 @@ class ScheduleService:
             date__lte=end_date
         )
         return schedules
+
+
+
 
     @staticmethod
     def update_schedule(schedule, validated_data, images):

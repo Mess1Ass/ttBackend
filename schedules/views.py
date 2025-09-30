@@ -79,6 +79,8 @@ def list_schedules(request):
     serializer = ScheduleSerializer(schedules, many=True)
     return Response(serializer.data)
 
+
+
 @api_view(["GET"])
 def get_schedules_by_month(request):
     """按月份查询演出时间表"""
@@ -105,9 +107,19 @@ def get_schedules_by_month(request):
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 @api_view(["GET"])
+def get_schedules_by_id(request, scheId):
+    """按id查询演出时间表"""
+    try:
+        schedule = ScheduleService.get_schedule_byid(scheId)
+        res = ScheduleSerializer(schedule).data
+        return Response(res, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@api_view(["GET"])
 def get_schedule_image(request, scheId, filename):
     """获取某个 schedule 的指定图片"""
-    schedule = ScheduleService.get_schedule(scheId)
+    schedule = ScheduleService.get_schedule_byid(scheId)
     if not schedule:
         raise Http404("Schedule not found")
 

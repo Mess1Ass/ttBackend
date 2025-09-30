@@ -9,6 +9,17 @@ from .serializers import GroupSerializer
 
 # Create your views here.
 
+@api_view(["PUT"])
+def update_group(request, groupId):
+    """更新团体信息"""
+    data = request.data
+    updated = GroupService.update_group(groupId, data)
+    if not updated:
+        return Response({"error": "Group not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    # 返回序列化后的 group
+    return Response(GroupSerializer(updated).data, status=status.HTTP_200_OK)
+
 
 @api_view(["DELETE"])
 def delete_showlog_inupdate(request, group_name, schedule_id):

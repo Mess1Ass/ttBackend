@@ -5,6 +5,7 @@ urlpatterns = [
     path("", views.list_schedules),
     path("create/", views.create_schedule),
     path("month/", views.get_schedules_by_month, name="get_schedules_by_month"),
+    path("<str:scheId>/", views.get_schedules_by_id, name="get_schedules_by_id"),
 
     # 图片相关接口先放前面
     path("<str:schedule_id>/imageDelete/<str:img_name>/", views.delete_schedule_image, name="delete_schedule_image"),
