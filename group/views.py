@@ -8,6 +8,12 @@ from .services import ShowlogService, GroupService # 确保导入了 Service
 from .serializers import GroupSerializer
 
 # Create your views here.
+@api_view(["GET"])
+def list_groups(request):
+    """获取所有团体列表"""
+    groups = GroupService.list_groups()
+    return Response(GroupSerializer(groups, many=True).data, status=status.HTTP_200_OK)
+
 
 @api_view(["PUT"])
 def update_group(request, groupId):
@@ -23,7 +29,7 @@ def update_group(request, groupId):
 
 @api_view(["DELETE"])
 def delete_showlog_inupdate(request, group_name, schedule_id):
-    """删除演出记录"""
+    """删除该团体演出记录"""
     try:
         group_id = GroupService.get_group_byname(group_name).id
         deleted = ShowlogService.delete_showlog(group_id, schedule_id)

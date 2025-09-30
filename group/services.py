@@ -42,7 +42,15 @@ class GroupService:
     def get_group_and_showlog_byname(group_name: str):
         """获取团体信息（带 showlogs，确保可 JSON 序列化）"""
         try:
+            # 1. 严格匹配
             group = Group.objects(name=group_name).first()
+
+            # 2. 双向模糊匹配（只在没找到时才查）
+            if not group:
+                group = Group.objects(
+                    Q(name__icontains=group_name) | Q(name__regex=f".*{group_name}.*")
+                ).first()
+                
             if not group:
                 return None
 
