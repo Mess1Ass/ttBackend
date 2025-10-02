@@ -1,3 +1,5 @@
+退出venu<br>
+deactivate<br>
 服务器启动django项目流程<br>
 进入toolBackend文件夹<br>
 source venv/bin/activate<br>
