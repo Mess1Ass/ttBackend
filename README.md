@@ -3,9 +3,9 @@ deactivate<br>
 服务器启动django项目流程<br>
 进入toolBackend文件夹<br>
 source venv/bin/activate<br>
-pm2 start /root/timeTable/ttBackend/venv/bin/gunicorn \<br>
-  --name ttBackend \<br>
-  --interpreter none \<br>
+pm2 start /root/timeTable/ttBackend/venv/bin/gunicorn \
+  --name ttBackend \
+  --interpreter none \
   -- --bind 0.0.0.0:3000 ttBackend.wsgi:application<br>
 pm2 logs backend<br>
 安装所需依赖（pip install -r requirements.txt ）<br>
